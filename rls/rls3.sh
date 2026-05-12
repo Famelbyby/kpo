@@ -1,5 +1,4 @@
 #!/bin/bash
-# ВКО Simulation — RLS-3: Дарьял, x=12000 y=5000
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 source "$PROJECT_DIR/config.sh"
