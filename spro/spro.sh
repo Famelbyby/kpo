@@ -1,7 +1,4 @@
 #!/bin/bash
-# ВКО Simulation — Система ПРО (СПРО), Москва, радиус 1200 км
-# Detects and destroys ballistic targets (warheads).
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 source "$PROJECT_DIR/config.sh"
@@ -39,7 +36,6 @@ echo "[$NAME] СПРО запущена. Координаты: ($MY_X, $MY_Y), �
 echo "[$NAME] Боекомплект: $AMMO противоракет"
 log_to_file "$LOGS_DIR/${NAME,,}.log" "[$NAME] Запуск. X=$MY_X Y=$MY_Y, Радиус=$MY_RANGE, БК=$AMMO"
 
-# ─── KP commands ─────────────────────────────────────────────────────────
 process_kp_commands() {
     local cmd
     cmd=$(read_kp_command "$NAME" 2>/dev/null)
@@ -59,7 +55,6 @@ process_kp_commands() {
     esac
 }
 
-# ─── Cleanup stale state ─────────────────────────────────────────────────
 cleanup_stale() {
     local now target_id
     now=$(date +%s)
@@ -80,7 +75,6 @@ cleanup_stale() {
     done
 }
 
-# ─── Main loop ────────────────────────────────────────────────────────────
 echo "[$NAME] Начало сканирования..."
 while true; do
     declare -A present_now=()
@@ -90,7 +84,6 @@ while true; do
         present_now[$target_id]=1
         last_seen[$target_id]=$(date +%s)
 
-        # ── Shot pending tracking ──────────────────────────────────────
         if [[ "${shot_pending[$target_id]:-0}" -eq 1 ]]; then
             if [[ "$tx" != "${shot_x[$target_id]}" || "$ty" != "${shot_y[$target_id]}" ]]; then
                 if [[ "${shot_seen_after[$target_id]:-0}" -eq 0 ]]; then
@@ -107,8 +100,6 @@ while true; do
             continue
         fi
 
-        # ── Type check by ID suffix ────────────────────────────────────
-        # SPRO engages only ballistic targets (ID suffix 'b')
         if [[ ! "$target_id" =~ b$ ]]; then
             ignore_target[$target_id]=1
             continue
@@ -116,26 +107,22 @@ while true; do
 
         [[ "${ignore_target[$target_id]:-0}" -eq 1 ]] && continue
 
-        # ── Zone check ─────────────────────────────────────────────────
         if ! in_circle "$tx" "$ty" "$MY_X" "$MY_Y" "$MY_RANGE"; then
             continue
         fi
 
-        # ── First detection ────────────────────────────────────────────
         if [[ "${detected_sent[$target_id]:-0}" -eq 0 ]]; then
             log_to_file "$LOGS_DIR/${NAME,,}.log" "Обнаружена цель ID:$target_id в зоне СПРО ($tx, $ty)"
             send_to_kp "$NAME" "detected" "$target_id" "$tx" "$ty" "первая засечка в зоне СПРО"
             detected_sent[$target_id]=1
         fi
 
-        # ── Store first sighting ───────────────────────────────────────
         if [[ -z "${first_x[$target_id]:-}" ]]; then
             first_x[$target_id]="$tx"
             first_y[$target_id]="$ty"
             continue
         fi
 
-        # ── Compute speed (distance ≈ m/s since 1 cycle ≈ 1 sec) ──────
         speed_ms=$(calc_distance "${first_x[$target_id]}" "${first_y[$target_id]}" "$tx" "$ty")
         if (( speed_ms == 0 )); then
             continue
@@ -146,7 +133,6 @@ while true; do
         log_to_file "$LOGS_DIR/${NAME,,}.log" \
             "2-я засечка ID:$target_id скорость:$speed_ms м/с"
 
-        # ── Fire if we have ammo ───────────────────────────────────────
         if (( AMMO <= 0 )); then
             log_to_file "$LOGS_DIR/${NAME,,}.log" "[$NAME] Нет противоракет!"
             send_to_kp "$NAME" "no_ammo" "$target_id" "$tx" "$ty" "боекомплект израсходован"
@@ -168,7 +154,6 @@ while true; do
 
     done < <(list_latest_targets)
 
-    # ── Check destroyed: targets that disappeared after shot ────────────
     for target_id in "${!shot_pending[@]}"; do
         [[ "${shot_pending[$target_id]}" -eq 1 ]] || continue
         if [[ -z "${present_now[$target_id]:-}" ]]; then
@@ -180,7 +165,6 @@ while true; do
         fi
     done
 
-    # ── Ammo resupply ──────────────────────────────────────────────────
     now_ts=$(date +%s)
     if (( AMMO < AMMO_RESUPPLY_THRESHOLD && (now_ts - LAST_RESUPPLY_TIME) >= AMMO_RESUPPLY_INTERVAL )); then
         AMMO=$((AMMO + AMMO_RESUPPLY_AMOUNT))
