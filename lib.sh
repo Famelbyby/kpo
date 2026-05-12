@@ -102,7 +102,7 @@ list_latest_targets() {
         id=$(extract_id_from_filename "$(basename "$file")")
         [[ -z "$id" || ${#id} -ne 7 ]] && continue
 
-        m=$(stat -f %m "$file" 2>/dev/null || stat -c %Y "$file" 2>/dev/null || echo 0)
+        m=$(perl -e 'print((stat(shift))[9])' "$file" 2>/dev/null || echo 0)
         [[ "$m" == "0" ]] && continue
 
         if [[ -z "${best_mtime[$id]:-}" || "$m" -gt "${best_mtime[$id]}" ]]; then
