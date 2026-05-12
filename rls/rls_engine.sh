@@ -1,7 +1,4 @@
 #!/bin/bash
-# ВКО Simulation — RLS Engine
-# Generic radar station logic. Source after setting:
-#   RLS_NAME, RLS_X, RLS_Y, RLS_RANGE, RLS_AZIMUTH, RLS_ANGLE, RLS_TYPE
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -28,7 +25,6 @@ echo "[$RLS_NAME] РЛС типа $RLS_TYPE запущена. Координат
 echo "[$RLS_NAME] Азимут: ${RLS_AZIMUTH}°, Угол обзора: ${RLS_ANGLE}°, Дальность: $((RLS_RANGE/1000)) км"
 log_to_file "$LOGS_DIR/${RLS_NAME,,}.log" "[$RLS_NAME] Запуск. Тип: $RLS_TYPE, X=$RLS_X Y=$RLS_Y, Азимут=$RLS_AZIMUTH°, Угол=$RLS_ANGLE°"
 
-# ─── KP commands ─────────────────────────────────────────────────────────
 process_kp_commands() {
     local cmd
     cmd=$(read_kp_command "$RLS_NAME" 2>/dev/null)
@@ -43,7 +39,6 @@ process_kp_commands() {
     esac
 }
 
-# ─── Cleanup stale state ─────────────────────────────────────────────────
 cleanup_stale() {
     local now target_id
     now=$(date +%s)
@@ -58,7 +53,6 @@ cleanup_stale() {
     done
 }
 
-# ─── Main loop ────────────────────────────────────────────────────────────
 echo "[$RLS_NAME] Начало сканирования целей..."
 while true; do
     while read -r target_id tx ty; do
@@ -67,26 +61,22 @@ while true; do
 
         [[ "${closed[$target_id]:-0}" -eq 1 ]] && continue
 
-        # Zone check
         if ! in_rls_sector "$tx" "$ty" "$RLS_X" "$RLS_Y" "$RLS_RANGE" "$RLS_AZIMUTH" "$RLS_ANGLE"; then
             continue
         fi
 
-        # First detection report
         if [[ "${detected_sent[$target_id]:-0}" -eq 0 ]]; then
             log_to_file "$LOGS_DIR/${RLS_NAME,,}.log" "Обнаружена цель ID:$target_id ($tx, $ty)"
             send_to_kp "$RLS_NAME" "detected" "$target_id" "$tx" "$ty" "первая засечка"
             detected_sent[$target_id]=1
         fi
 
-        # Store first sighting
         if [[ -z "${first_x[$target_id]:-}" ]]; then
             first_x[$target_id]="$tx"
             first_y[$target_id]="$ty"
             continue
         fi
 
-        # Second sighting — speed = distance (pos ≈ 1 simulated sec apart)
         speed_ms=$(calc_distance "${first_x[$target_id]}" "${first_y[$target_id]}" "$tx" "$ty")
         if (( speed_ms == 0 )); then
             continue
@@ -102,7 +92,6 @@ while true; do
         send_to_kp "$RLS_NAME" "detected" "$target_id" "$tx" "$ty" \
             "2-я засечка, скорость $speed_ms м/с, тип $target_type"
 
-        # Ballistic heading to SPRO?
         if [[ "$target_type" == "Бал.блок" ]]; then
             bearing_to_spro=$(calc_bearing "$tx" "$ty" "$SPRO_CENTER_X" "$SPRO_CENTER_Y")
             bearing_of_target=$(calc_bearing "${first_x[$target_id]}" "${first_y[$target_id]}" "$tx" "$ty")
