@@ -1,8 +1,4 @@
 #!/bin/bash
-# ВКО Simulation — ZRDN Engine
-# Generic anti-aircraft missile division logic. Source after setting:
-#   ZRDN_NAME, ZRDN_X, ZRDN_Y, ZRDN_RANGE
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 source "$PROJECT_DIR/config.sh"
@@ -37,7 +33,6 @@ echo "[$ZRDN_NAME] ЗРДН запущен. Координаты: ($ZRDN_X, $ZRD
 echo "[$ZRDN_NAME] Боекомплект: $AMMO ракет"
 log_to_file "$LOGS_DIR/${ZRDN_NAME,,}.log" "[$ZRDN_NAME] Запуск. X=$ZRDN_X Y=$ZRDN_Y, Радиус=$ZRDN_RANGE, БК=$AMMO"
 
-# ─── KP commands ─────────────────────────────────────────────────────────
 process_kp_commands() {
     local cmd
     cmd=$(read_kp_command "$ZRDN_NAME" 2>/dev/null)
@@ -58,7 +53,6 @@ process_kp_commands() {
     esac
 }
 
-# ─── Cleanup stale state ─────────────────────────────────────────────────
 cleanup_stale() {
     local now target_id
     now=$(date +%s)
@@ -79,7 +73,6 @@ cleanup_stale() {
     done
 }
 
-# ─── Main loop ────────────────────────────────────────────────────────────
 echo "[$ZRDN_NAME] Начало сканирования..."
 while true; do
     declare -A present_now=()
@@ -89,7 +82,6 @@ while true; do
         present_now[$target_id]=1
         last_seen[$target_id]=$(date +%s)
 
-        # ── Shot pending tracking ──────────────────────────────────────
         if [[ "${shot_pending[$target_id]:-0}" -eq 1 ]]; then
             if [[ "$tx" != "${shot_x[$target_id]}" || "$ty" != "${shot_y[$target_id]}" ]]; then
                 if [[ "${shot_seen_after[$target_id]:-0}" -eq 0 ]]; then
@@ -106,9 +98,6 @@ while true; do
             continue
         fi
 
-        # ── Type check by ID suffix ────────────────────────────────────
-        # ZRDN engages only aircraft ('s') and cruise missiles ('r')
-        # Ignores ballistic ('b')
         if [[ "$target_id" =~ b$ ]]; then
             ignore_target[$target_id]=1
             continue
@@ -116,26 +105,22 @@ while true; do
 
         [[ "${ignore_target[$target_id]:-0}" -eq 1 ]] && continue
 
-        # ── Zone check ─────────────────────────────────────────────────
         if ! in_circle "$tx" "$ty" "$ZRDN_X" "$ZRDN_Y" "$ZRDN_RANGE"; then
             continue
         fi
 
-        # ── First detection ────────────────────────────────────────────
         if [[ "${detected_sent[$target_id]:-0}" -eq 0 ]]; then
             log_to_file "$LOGS_DIR/${ZRDN_NAME,,}.log" "Обнаружена цель ID:$target_id в зоне ($tx, $ty)"
             send_to_kp "$ZRDN_NAME" "detected" "$target_id" "$tx" "$ty" "первая засечка в зоне ЗРДН"
             detected_sent[$target_id]=1
         fi
 
-        # ── Store first sighting ───────────────────────────────────────
         if [[ -z "${first_x[$target_id]:-}" ]]; then
             first_x[$target_id]="$tx"
             first_y[$target_id]="$ty"
             continue
         fi
 
-        # ── Compute speed (distance ≈ m/s since 1 cycle ≈ 1 sec) ──────
         speed_ms=$(calc_distance "${first_x[$target_id]}" "${first_y[$target_id]}" "$tx" "$ty")
         if (( speed_ms == 0 )); then
             continue
@@ -146,7 +131,6 @@ while true; do
         log_to_file "$LOGS_DIR/${ZRDN_NAME,,}.log" \
             "2-я засечка ID:$target_id скорость:$speed_ms м/с"
 
-        # ── Fire if we have ammo ───────────────────────────────────────
         if (( AMMO <= 0 )); then
             log_to_file "$LOGS_DIR/${ZRDN_NAME,,}.log" "[$ZRDN_NAME] Нет ракет!"
             send_to_kp "$ZRDN_NAME" "no_ammo" "$target_id" "$tx" "$ty" "боекомплект израсходован"
@@ -168,7 +152,6 @@ while true; do
 
     done < <(list_latest_targets)
 
-    # ── Check destroyed: targets that disappeared after shot ────────────
     for target_id in "${!shot_pending[@]}"; do
         [[ "${shot_pending[$target_id]}" -eq 1 ]] || continue
         if [[ -z "${present_now[$target_id]:-}" ]]; then
@@ -180,7 +163,6 @@ while true; do
         fi
     done
 
-    # ── Ammo resupply ──────────────────────────────────────────────────
     now_ts=$(date +%s)
     if (( AMMO < AMMO_RESUPPLY_THRESHOLD && (now_ts - LAST_RESUPPLY_TIME) >= AMMO_RESUPPLY_INTERVAL )); then
         AMMO=$((AMMO + AMMO_RESUPPLY_AMOUNT))
