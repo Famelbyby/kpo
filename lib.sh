@@ -104,12 +104,23 @@ list_latest_targets() {
 }
 
 calc_distance() {
-    awk -v x1="$1" -v y1="$2" -v x2="$3" -v y2="$4" '
-    BEGIN {
-        dx = x2 - x1; dy = y2 - y1
-        printf "%.0f\n", sqrt(dx*dx + dy*dy)
-    }'
+    x1=$1
+    y1=$2
+    x2=$3
+    y2=$4
+
+    dx=$((x2 - x1))
+    dy=$((y2 - y1))
+
+    dx_squared=$((dx * dx))
+    dy_squared=$((dy * dy))
+
+    sum_of_squares=$((dx_squared + dy_squared))
+    distance=$(echo "scale=0; sqrt($sum_of_squares)" | bc -l)
+
+    printf "%.0f\n" "$distance"
 }
+
 
 calc_bearing() {
     awk -v x1="$1" -v y1="$2" -v x2="$3" -v y2="$4" '
@@ -131,11 +142,11 @@ in_circle() {
 }
 
 in_rls_sector() {
-    local tx="$1" ty="$2"      # target coords
-    local rx="$3" ry="$4"      # RLS coords
-    local rng="$5"             # max range
-    local azimuth="$6"          # center azimuth (degrees)
-    local angle="$7"            # view angle (degrees)
+    local tx="$1" ty="$2"
+    local rx="$3" ry="$4"
+    local rng="$5"
+    local azimuth="$6"
+    local angle="$7"
 
     local dist
     dist=$(calc_distance "$tx" "$ty" "$rx" "$ry")
@@ -216,7 +227,6 @@ decrypt_message() {
         return 1
     fi
 
-    # Split: everything before last | is plaintext, last field is checksum
     plaintext="${msg%|*}"
     checksum="${msg##*|}"
 
@@ -245,7 +255,6 @@ send_to_kp() {
         return 1
     fi
 
-    # Unique filename with timestamp + random
     filename="${TO_KP_DIR}/msg_$(epoch_ms)_$(printf '%04d' $((RANDOM % 10000)))"
     echo "$encrypted" > "$filename"
     return 0
@@ -255,7 +264,6 @@ read_kp_command() {
     local subsystem="$1"
     local cmd_file pattern file content plaintext
 
-    # Look for files named for this subsystem
     pattern="${FROM_KP_DIR}/${subsystem}_*"
     for file in $pattern; do
         [[ -f "$file" ]] || continue
@@ -292,12 +300,10 @@ send_kp_command() {
 log_to_file() {
     local logfile="$1" message="$2"
 
-    # Rotate if needed
     if [[ -f "$logfile" ]]; then
         local lines
         lines=$(wc -l < "$logfile" 2>/dev/null || echo 0)
         if (( lines >= MAX_LOG_LINES )); then
-            # Remove oldest rotation, shift others
             local i
             for ((i = MAX_LOG_ROTATIONS; i >= 1; i--)); do
                 [[ -f "${logfile}.${i}" ]] && mv "${logfile}.${i}" "${logfile}.$((i + 1))" 2>/dev/null
@@ -359,7 +365,6 @@ db_log_destruction() {
     sqlite3 "$DB_FILE" "INSERT INTO destruction_stats (ts, subsystem, target_id, target_type, result, x, y) VALUES ('$ts', '$subsystem', '$target_id', '$target_type', '$result', $x, $y);" 2>/dev/null
 }
 
-# Statistics queries
 db_stats_top_destroyers() {
     sqlite3 "$DB_FILE" <<'SQL'
 SELECT subsystem, COUNT(*) as kills

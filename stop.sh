@@ -1,7 +1,4 @@
 #!/bin/bash
-# ВКО Simulation — Stop Script
-# Stops all components gracefully.
-
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PIDS_DIR="$PROJECT_DIR/temp/pids"
 
@@ -15,7 +12,6 @@ $SILENT || echo "========================================"
 STOPPED=0
 FAILED=0
 
-# Kill all processes from any PID files found
 for pidfile in "$PIDS_DIR"/*.pid; do
     [[ -f "$pidfile" ]] || continue
     pid=$(cat "$pidfile" 2>/dev/null)
@@ -23,7 +19,6 @@ for pidfile in "$PIDS_DIR"/*.pid; do
     [[ -z "$pid" ]] && { rm -f "$pidfile"; continue; }
 
     if kill -0 "$pid" 2>/dev/null; then
-        # Try graceful kill first
         kill "$pid" 2>/dev/null
         sleep 0.2
         if kill -0 "$pid" 2>/dev/null; then
@@ -43,7 +38,6 @@ for pidfile in "$PIDS_DIR"/*.pid; do
     rm -f "$pidfile"
 done
 
-# Clean up any remaining PID files
 rm -f "$PIDS_DIR"/*.pid 2>/dev/null
 
 $SILENT || echo ""

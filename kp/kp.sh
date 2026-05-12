@@ -2,7 +2,7 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 source "$PROJECT_DIR/config.sh"
-source "$PROJECT_DIR/lib.sh"
+source "$PROJECT_DIR/v.sh"
 
 NAME="KP"
 
@@ -93,7 +93,7 @@ process_message() {
 
     case "$msg_type" in
         hit|miss)
-            local ttype="${target_id: -1:1}"  # last char of ID = type
+            local ttype="${target_id: -1:1}"
             local tname=""
             case "$ttype" in
                 b) tname="Бал.блок" ;;
