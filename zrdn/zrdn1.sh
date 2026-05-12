@@ -1,5 +1,4 @@
 #!/bin/bash
-# ВКО Simulation — ZRDN-1: Томск, r=350 км
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 source "$PROJECT_DIR/config.sh"
