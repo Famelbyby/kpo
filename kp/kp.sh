@@ -26,11 +26,13 @@ db_init
 # Track last health check time
 declare -A last_ping_time
 declare -A subsystem_alive
+declare -A ping_fail_count
 HEALTH_CHECK_COUNT=0
 SUBSYSTEMS=("RLS1" "RLS2" "RLS3" "SPRO" "ZRDN1" "ZRDN2" "ZRDN3")
 for sub in "${SUBSYSTEMS[@]}"; do
     subsystem_alive["$sub"]="starting"
     last_ping_time["$sub"]=0
+    ping_fail_count["$sub"]=0
 done
 
 echo "[$NAME] Командный пункт ВКО запущен. PID=$$"
@@ -81,6 +83,7 @@ process_message() {
         pong)
             display_msg="$sender работоспособность подтверждена"
             subsystem_alive["$sender"]="alive"
+            ping_fail_count["$sender"]=0
             ;;
         status)
             display_msg="$sender статус: $info"
@@ -137,8 +140,11 @@ perform_health_check() {
 
             # Log failure only after first check — give subsystems time to respond
             if [[ "${subsystem_alive[$sub]}" == "unknown" && $HEALTH_CHECK_COUNT -gt 1 ]]; then
-                log_to_file "$LOGS_DIR/kp.log" "[$NAME] $sub не отвечает на проверку работоспособности"
-                db_log_health "$(timestamp)" "$sub" "unreachable"
+                ping_fail_count[$sub]=$(( ${ping_fail_count[$sub]} + 1 ))
+                if (( ${ping_fail_count[$sub]} >= 2 )); then
+                    log_to_file "$LOGS_DIR/kp.log" "[$NAME] $sub не отвечает на проверку работоспособности"
+                    db_log_health "$(timestamp)" "$sub" "unreachable"
+                fi
             fi
             subsystem_alive["$sub"]="unknown"
         fi

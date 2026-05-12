@@ -83,6 +83,7 @@ cleanup_stale() {
 # ─── Main loop ────────────────────────────────────────────────────────────
 echo "[$NAME] Начало сканирования..."
 while true; do
+    process_kp_commands
     declare -A present_now=()
 
     while read -r target_id tx ty; do
@@ -190,7 +191,6 @@ while true; do
     fi
 
     cleanup_stale
-    process_kp_commands
     sleep "$SLEEP_TIME"
 done
 

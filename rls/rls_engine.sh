@@ -61,6 +61,7 @@ cleanup_stale() {
 # ─── Main loop ────────────────────────────────────────────────────────────
 echo "[$RLS_NAME] Начало сканирования целей..."
 while true; do
+    process_kp_commands
     while read -r target_id tx ty; do
         [[ -n "$target_id" ]] || continue
         last_seen[$target_id]=$(date +%s)
@@ -120,7 +121,6 @@ while true; do
     done < <(list_latest_targets)
 
     cleanup_stale
-    process_kp_commands
     sleep "$SLEEP_TIME"
 done
 
