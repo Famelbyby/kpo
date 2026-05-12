@@ -31,7 +31,7 @@ acquire_lock() {
             echo "[ERROR] $name: Экземпляр уже запущен (PID $old_pid)" >&2
             return 1
         fi
-        # Stale PID file — remove it
+
         rm -f "$pidfile"
     fi
 
@@ -45,7 +45,6 @@ release_lock() {
 }
 
 timestamp() {
-    # Cross-platform timestamp with milliseconds
     perl -MTime::HiRes=gettimeofday -e '
         ($s, $us) = gettimeofday();
         @t = localtime($s);
@@ -65,7 +64,7 @@ extract_id_from_filename() {
     for ((i = 2; i < 28; i += 4)); do
         hex_id+="${filename:$i:2}"
     done
-    # Convert hex to ASCII (7-char target ID, last char = type: b/s/r)
+
     echo -n "$hex_id" | xxd -r -p 2>/dev/null
 }
 
