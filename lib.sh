@@ -1,18 +1,12 @@
 #!/bin/bash
-# ВКО Simulation — Shared Library
-# Source this from all component scripts after config.sh
-
-# ─── Security: prevent non-Bash, non-Linux/macOS, root ─────────────────────
 check_environment() {
     local subsystem_name="$1"
 
-    # 1. Must be Bash >= 4
     (( BASH_VERSINFO[0] < 4 )) && {
         echo "[ERROR] $subsystem_name: Требуется Bash >= 4, текущий: $BASH_VERSION" >&2
         exit 1
     }
-
-    # 2. Must be Linux (allow macOS for development)
+    
     local os
     os="$(uname -s)"
     if [[ "$os" != "Linux" && "$os" != "Darwin" ]]; then
@@ -20,14 +14,12 @@ check_environment() {
         exit 1
     fi
 
-    # 3. Must NOT be root
     if [[ "$(id -u)" -eq 0 ]]; then
         echo "[ERROR] $subsystem_name: Запуск от root запрещён." >&2
         exit 1
     fi
 }
 
-# ─── Duplicate instance prevention ─────────────────────────────────────────
 acquire_lock() {
     local name="$1"
     local pidfile="$PIDS_DIR/${name}.pid"
@@ -52,7 +44,6 @@ release_lock() {
     rm -f "$PIDS_DIR/${name}.pid"
 }
 
-# ─── Timestamp ─────────────────────────────────────────────────────────────
 timestamp() {
     # Cross-platform timestamp with milliseconds
     perl -MTime::HiRes=gettimeofday -e '
@@ -67,10 +58,6 @@ epoch_ms() {
     perl -MTime::HiRes=time -e 'printf "%.0f\n", time() * 1000' 2>/dev/null || date +%s000
 }
 
-# ─── Target ID extraction from GenTargets.sh filename ──────────────────────
-# Filename encoding: interleaved random(r) + ID hex(h), 30 hex chars:
-#   r[0:2]h[0:2] r[2:4]h[2:4] ... r[12:14]h[12:14] r[14:16]
-# ID hex is at positions: 2,3  6,7  10,11  14,15  18,19  22,23  26,27
 extract_id_from_filename() {
     local filename="$1"
     local hex_id=""
@@ -82,16 +69,11 @@ extract_id_from_filename() {
     echo -n "$hex_id" | xxd -r -p 2>/dev/null
 }
 
-# ─── Read target file ──────────────────────────────────────────────────────
-# File format: X:  12345678    Y:  87654321
 read_target_coords() {
     local filepath="$1"
     awk '{ gsub(/[^0-9-]/, "", $2); gsub(/[^0-9-]/, "", $4); print $2, $4 }' "$filepath" 2>/dev/null
 }
 
-# ─── list_latest_targets ──────────────────────────────────────────────────
-# Scan target directory and return the LATEST file (by mtime) per target ID.
-# Output: target_id x y (one line per unique target)
 list_latest_targets() {
     local id m file x y
     declare -A best_file
@@ -121,7 +103,6 @@ list_latest_targets() {
     done
 }
 
-# ─── Math helpers ──────────────────────────────────────────────────────────
 calc_distance() {
     awk -v x1="$1" -v y1="$2" -v x2="$3" -v y2="$4" '
     BEGIN {
@@ -130,7 +111,6 @@ calc_distance() {
     }'
 }
 
-# Bearing from (x1,y1) to (x2,y2), degrees 0-360, 0=North
 calc_bearing() {
     awk -v x1="$1" -v y1="$2" -v x2="$3" -v y2="$4" '
     BEGIN {
@@ -143,8 +123,6 @@ calc_bearing() {
     }'
 }
 
-# ─── Zone checks ───────────────────────────────────────────────────────────
-# Check if point is within circular zone (for SPRO, ZRDN)
 in_circle() {
     local tx="$1" ty="$2" cx="$3" cy="$4" radius="$5"
     local dist
@@ -152,9 +130,6 @@ in_circle() {
     (( dist <= radius ))
 }
 
-# Check if point is within RLS sector (range + angle + azimuth)
-# azimuth: direction RLS looks, angle: total view width
-# Sector spans [azimuth - angle/2, azimuth + angle/2]
 in_rls_sector() {
     local tx="$1" ty="$2"      # target coords
     local rx="$3" ry="$4"      # RLS coords
@@ -162,18 +137,15 @@ in_rls_sector() {
     local azimuth="$6"          # center azimuth (degrees)
     local angle="$7"            # view angle (degrees)
 
-    # Range check
     local dist
     dist=$(calc_distance "$tx" "$ty" "$rx" "$ry")
     if (( dist > rng )); then
         return 1
     fi
 
-    # Bearing check
     local bearing half_angle left right
     bearing=$(calc_bearing "$rx" "$ry" "$tx" "$ty")
 
-    # awk comparison with azimuth wrapping
     awk -v b="$bearing" -v az="$azimuth" -v ang="$angle" '
     BEGIN {
         half = ang / 2.0
@@ -199,7 +171,6 @@ in_rls_sector() {
     }'
 }
 
-# ─── Target type by speed ──────────────────────────────────────────────────
 classify_target() {
     local speed="$1"
     if (( speed >= BALLISTIC_MIN_SPEED && speed <= BALLISTIC_MAX_SPEED )); then
@@ -213,7 +184,6 @@ classify_target() {
     fi
 }
 
-# Return short code: b, r, s, or u
 classify_target_code() {
     local speed="$1"
     if (( speed >= BALLISTIC_MIN_SPEED && speed <= BALLISTIC_MAX_SPEED )); then
@@ -227,8 +197,6 @@ classify_target_code() {
     fi
 }
 
-# ─── Encryption ────────────────────────────────────────────────────────────
-# Encrypt plaintext → base64 with integrity checksum
 encrypt_message() {
     local plaintext="$1"
     local checksum
@@ -238,8 +206,6 @@ encrypt_message() {
     echo -n "$msg" | openssl enc -"$ENCRYPTION_ALG" -pbkdf2 -pass "pass:$ENCRYPTION_KEY" -base64 -A 2>/dev/null | tr -d '\n'
 }
 
-# Decrypt base64 → plaintext, verify integrity
-# Returns plaintext on success, empty string + error message on failure
 decrypt_message() {
     local ciphertext="$1"
     local msg checksum computed_checksum plaintext
@@ -266,9 +232,6 @@ decrypt_message() {
     return 0
 }
 
-# ─── Messaging ─────────────────────────────────────────────────────────────
-# Send message to KP
-# Format: timestamp|sender|msg_type|target_id|x|y|extra
 send_to_kp() {
     local sender="$1" msg_type="$2" target_id="$3" x="$4" y="$5" extra="$6"
     local ts plaintext encrypted filename
@@ -288,8 +251,6 @@ send_to_kp() {
     return 0
 }
 
-# Read command from KP (for subsystems)
-# Returns command type and payload
 read_kp_command() {
     local subsystem="$1"
     local cmd_file pattern file content plaintext
@@ -310,7 +271,6 @@ read_kp_command() {
     return 1
 }
 
-# Send command from KP to a specific subsystem
 send_kp_command() {
     local subsystem="$1" cmd_type="$2" payload="$3"
     local ts plaintext encrypted filename
@@ -329,8 +289,6 @@ send_kp_command() {
     return 0
 }
 
-# ─── Logging ───────────────────────────────────────────────────────────────
-# Write to subsystem log with rotation
 log_to_file() {
     local logfile="$1" message="$2"
 
@@ -352,7 +310,6 @@ log_to_file() {
     echo "$(timestamp) $message" >> "$logfile"
 }
 
-# ─── Database helpers ──────────────────────────────────────────────────────
 db_init() {
     sqlite3 "$DB_FILE" <<'SQL'
 CREATE TABLE IF NOT EXISTS journal (
