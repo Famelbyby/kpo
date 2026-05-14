@@ -21,8 +21,9 @@ db_init
 declare -A last_ping_time
 declare -A subsystem_alive
 declare -A ping_fail_count
+declare -A pongs
 HEALTH_CHECK_COUNT=0
-SUBSYSTEMS=("RLS1" "RLS2" "RLS3" "SPRO" "ZRDN1" "ZRDN2" "ZRDN3")
+SUBSYSTEMS=("Minsk_RLS" "RLS2" "Omsk_RLS" "Habarovsk_SPRO" "Krasnodar_ZRDN" "Odessa_ZRDN" "Orenburg_ZRDN")
 for sub in "${SUBSYSTEMS[@]}"; do
     subsystem_alive["$sub"]="starting"
     last_ping_time["$sub"]=0
@@ -75,6 +76,12 @@ process_message() {
             display_msg="$sender работоспособность подтверждена"
             subsystem_alive["$sender"]="alive"
             ping_fail_count["$sender"]=0
+            
+            if [[ "${pongs[$sender]}" == 1 ]]; then
+                return 0;
+            fi
+
+            pongs["$sender"]=1
             ;;
         status)
             display_msg="$sender статус: $info"
@@ -129,6 +136,7 @@ perform_health_check() {
                 if (( ${ping_fail_count[$sub]} >= 2 )); then
                     log_to_file "$LOGS_DIR/kp.log" "[$NAME] $sub не отвечает на проверку работоспособности"
                     db_log_health "$(timestamp)" "$sub" "unreachable"
+                    pongs["$sub"]=0
                 fi
             fi
             subsystem_alive["$sub"]="unknown"

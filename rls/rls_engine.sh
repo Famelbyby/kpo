@@ -90,10 +90,10 @@ while true; do
 
         log_to_file "$LOGS_DIR/${RLS_NAME,,}.log" \
             "2-я засечка ID:$target_id скорость:$speed_ms м/с тип:$target_type ($tx, $ty)"
-        send_to_kp "$RLS_NAME" "detected" "$target_id" "$tx" "$ty" \
-            "2-я засечка, скорость $speed_ms м/с, тип $target_type"
 
         if [[ "$target_type" == "Бал.блок" ]]; then
+            detected=0
+
             bearing_to_spro=$(calc_bearing "$tx" "$ty" "$SPRO_CENTER_X" "$SPRO_CENTER_Y")
             bearing_of_target=$(calc_bearing "${first_x[$target_id]}" "${first_y[$target_id]}" "$tx" "$ty")
             diff=$(awk -v a="$bearing_of_target" -v b="$bearing_to_spro" '
@@ -103,6 +103,13 @@ while true; do
                     "Цель ID:$target_id движется к СПРО (отклонение ${diff}°)"
                 send_to_kp "$RLS_NAME" "direction_spro" "$target_id" "$tx" "$ty" \
                     "БР движется к СПРО, скорость $speed_ms м/с, отклонение ${diff}°"
+
+                detected=1
+            fi
+
+            if [[ "$detected" == 0 ]]; then
+                send_to_kp "$RLS_NAME" "detected" "$target_id" "$tx" "$ty" \
+                    "2-я засечка, скорость $speed_ms м/с, тип $target_type"
             fi
         fi
 
