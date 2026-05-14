@@ -20,6 +20,7 @@ declare -A first_y
 declare -A detected_sent
 declare -A closed
 declare -A last_seen
+declare -A ignore_target
 
 echo "[$RLS_NAME] РЛС типа $RLS_TYPE запущена. Координаты: ($RLS_X, $RLS_Y)"
 echo "[$RLS_NAME] Азимут: ${RLS_AZIMUTH}°, Угол обзора: ${RLS_ANGLE}°, Дальность: $((RLS_RANGE/1000)) км"
@@ -43,12 +44,13 @@ cleanup_stale() {
     local now target_id
     now=$(date +%s)
     for target_id in "${!last_seen[@]}"; do
-        if (( now - ${last_seen[$target_id]} > 12 )); then
+        if (( now - ${last_seen[$target_id]} > 3 )); then
             unset "last_seen[$target_id]"
             unset "first_x[$target_id]"
             unset "first_y[$target_id]"
             unset "detected_sent[$target_id]"
             unset "closed[$target_id]"
+            unset "ignore_target[$target_id]"
         fi
     done
 }
@@ -60,6 +62,11 @@ while true; do
         [[ -n "$target_id" ]] || continue
         last_seen[$target_id]=$(date +%s)
 
+        if [[ "$target_id" =~ b$ ]]; then
+            ignore_target["$target_id"]=0
+        fi
+
+        [[ "${ignore_target[$target_id]:-1}" -eq 1 ]] && continue
         [[ "${closed[$target_id]:-0}" -eq 1 ]] && continue
 
         if ! in_rls_sector "$tx" "$ty" "$RLS_X" "$RLS_Y" "$RLS_RANGE" "$RLS_AZIMUTH" "$RLS_ANGLE"; then

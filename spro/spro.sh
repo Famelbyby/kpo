@@ -59,7 +59,7 @@ cleanup_stale() {
     local now target_id
     now=$(date +%s)
     for target_id in "${!last_seen[@]}"; do
-        if (( now - ${last_seen[$target_id]} > 12 )); then
+        if (( now - ${last_seen[$target_id]} > 3 )); then
             unset "last_seen[$target_id]"
             unset "first_x[$target_id]"
             unset "first_y[$target_id]"

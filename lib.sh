@@ -6,7 +6,7 @@ check_environment() {
         echo "[ERROR] $subsystem_name: Требуется Bash >= 4, текущий: $BASH_VERSION" >&2
         exit 1
     }
-    
+
     local os
     os="$(uname -s)"
     if [[ "$os" != "Linux" && "$os" != "Darwin" ]]; then
@@ -74,12 +74,11 @@ read_target_coords() {
 }
 
 list_latest_targets() {
-    local id m file x y
+    local id m file x y now
     declare -A best_file
     declare -A best_mtime
 
-    for file in "$TARGET_DIR"/*; do
-        [[ -f "$file" ]] || continue
+    while IFS= read -r -d '' file; do
         id=$(extract_id_from_filename "$(basename "$file")")
         [[ -z "$id" || ${#id} -ne 7 ]] && continue
 
@@ -90,7 +89,25 @@ list_latest_targets() {
             best_mtime[$id]="$m"
             best_file[$id]="$file"
         fi
-    done
+    done < <(find "$TARGET_DIR" -type f -mtime -2s -print0 2>/dev/null)
+
+    if [[ ${#best_file[@]} -eq 0 ]]; then
+        now=$(date +%s)
+        for file in "$TARGET_DIR"/*; do
+            [[ -f "$file" ]] || continue
+            id=$(extract_id_from_filename "$(basename "$file")")
+            [[ -z "$id" || ${#id} -ne 7 ]] && continue
+
+            m=$(perl -e 'print((stat(shift))[9])' "$file" 2>/dev/null || echo 0)
+            [[ "$m" == "0" ]] && continue
+            (( now - m > 2 )) && continue
+
+            if [[ -z "${best_mtime[$id]:-}" || "$m" -gt "${best_mtime[$id]}" ]]; then
+                best_mtime[$id]="$m"
+                best_file[$id]="$file"
+            fi
+        done
+    fi
 
     for id in "${!best_file[@]}"; do
         local coords
@@ -103,21 +120,11 @@ list_latest_targets() {
 }
 
 calc_distance() {
-    x1=$1
-    y1=$2
-    x2=$3
-    y2=$4
-
-    dx=$((x2 - x1))
-    dy=$((y2 - y1))
-
-    dx_squared=$((dx * dx))
-    dy_squared=$((dy * dy))
-
-    sum_of_squares=$((dx_squared + dy_squared))
-    distance=$(echo "scale=0; sqrt($sum_of_squares)" | bc -l)
-
-    printf "%.0f\n" "$distance"
+    awk -v x1="$1" -v y1="$2" -v x2="$3" -v y2="$4" '
+    BEGIN {
+        dx = x2 - x1; dy = y2 - y1
+        printf "%.0f\n", sqrt(dx*dx + dy*dy)
+    }'
 }
 
 
